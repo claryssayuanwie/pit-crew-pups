@@ -6,11 +6,6 @@ import jude from './assets/jude.png';
 import olive from './assets/olive.png';
 
 
-const CANVAS_WIDTH = 800;
-const CANVAS_HEIGHT = 600;
-const SPEED = 3;
-const ROTATION_SPEED = 0.05;
-
 function Game() {
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
@@ -20,6 +15,16 @@ function Game() {
   const [playerDogs, setPlayerDogs] = useState({});
   const dogImages = useRef({});
   const myDogType = useRef(null);
+
+  const [canvasDimensions, setCanvasDimensions] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight - 100
+  });
+
+const CANVAS_WIDTH = canvasDimensions.width;
+const CANVAS_HEIGHT = canvasDimensions.height;
+const SPEED = 5;
+const ROTATION_SPEED = 0.05;
 
   useEffect(() => {
     // Connect to server
@@ -132,9 +137,9 @@ function Game() {
 
       // Draw simple track (oval)
       ctx.strokeStyle = '#e76f51';
-      ctx.lineWidth = 100;
+      ctx.lineWidth = 150;
       ctx.beginPath();
-      ctx.ellipse(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, 300, 200, 0, 0, Math.PI * 2);
+      ctx.ellipse(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_WIDTH * 0.35, CANVAS_HEIGHT * 0.35, 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // Draw all players
@@ -164,15 +169,31 @@ function Game() {
 
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(rotation);
+    ctx.rotate(rotation  + Math.PI / 2); // rotate to face movement direction, 90 degrees. 
     const size = 40;
     ctx.drawImage(img, -size/2, -size/2, size, size);
     ctx.restore();
   };
 
+    // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setCanvasDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight - 100
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+  return () => {
+    window.removeEventListener('resize', handleResize);
+  };
+}, []);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
-      <h1>🐕 Pit Crew Pups 🏎️</h1>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 0, margin: 0, overflow: 'hidden' }}>
+      <h1>🐕 Pit Crew Pups</h1>
       <p>Use Arrow Keys or WASD to move</p>
       <canvas 
         ref={canvasRef} 
