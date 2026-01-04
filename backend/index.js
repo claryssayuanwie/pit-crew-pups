@@ -21,21 +21,29 @@ let players = {};
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
   
-  // Add new player
+  // Add new player with random dog
+  const dogTypes = ['kenzo', 'olive', 'jude'];
+  const randomDog = dogTypes[Math.floor(Math.random() * dogTypes.length)];
+
   players[socket.id] = {
     id: socket.id,
     x: 100,
     y: 100,
-    rotation: 0
+    rotation: 0,
+    dogType: randomDog
   };
   
   socket.emit('current-players', players);
   socket.broadcast.emit('player-joined', players[socket.id]);
   
   socket.on('player-move', (data) => {
-    players[socket.id] = data;
-    socket.broadcast.emit('player-moved', data);
-  });
+  if (players[socket.id]) {
+    players[socket.id].x = data.x;
+    players[socket.id].y = data.y;
+    players[socket.id].rotation = data.rotation;
+  }
+  socket.broadcast.emit('player-moved', players[socket.id]);
+});
   
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
