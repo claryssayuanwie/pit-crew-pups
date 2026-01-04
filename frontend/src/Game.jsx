@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 
+import kenzo from './assets/kenzo.png';
+import jude from './assets/jude.png';
+import olive from './assets/olive.png';
+
+
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
 const SPEED = 3;
@@ -12,6 +17,9 @@ function Game() {
   const [players, setPlayers] = useState({});
   const keysPressed = useRef({});
   const myPlayer = useRef({ x: 400, y: 300, rotation: 0 });
+  const [playerDogs, setPlayerDogs] = useState({});
+  const dogImages = useRef({});
+  const myDogType = useRef(null);
 
   useEffect(() => {
     // Connect to server
@@ -20,6 +28,11 @@ function Game() {
     // Receive current players
     socketRef.current.on('current-players', (currentPlayers) => {
       setPlayers(currentPlayers);
+      const dogs = {};
+      Object.keys(currentPlayers).forEach(id => {
+        dogs[id] = currentPlayers[id].dogType || 'kenzo';
+      });
+      setPlayerDogs(dogs);
     });
 
     // New player joined
@@ -65,6 +78,22 @@ function Game() {
     };
   }, []);
 
+  // Load dog images and pick random dog
+  useEffect(() => {
+    const kenzoImg = new Image();
+    kenzoImg.src = kenzo;
+    const oliveImg = new Image();
+    oliveImg.src = olive;
+    const judeImg = new Image();
+    judeImg.src = jude;
+  
+    dogImages.current = { kenzo: kenzoImg, olive: oliveImg, jude: judeImg };
+  
+    // Pick random dog for yourself
+  const dogTypes = ['kenzo', 'olive', 'jude'];
+  myDogType.current = dogTypes[Math.floor(Math.random() * dogTypes.length)];
+  }, []);
+
   // Game loop
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -92,6 +121,7 @@ function Game() {
       if (socketRef.current) {
         socketRef.current.emit('player-move', {
           id: socketRef.current.id,
+          dogType: myDogType.current,
           ...myPlayer.current
         });
       }
@@ -109,12 +139,13 @@ function Game() {
 
       // Draw all players
       Object.values(players).forEach((player) => {
-        drawDog(ctx, player.x, player.y, player.rotation, '#264653');
+        const dogType = playerDogs[player.id] || 'kenzo';
+        drawDog(ctx, player.x, player.y, player.rotation, dogType);
       });
 
-      // Draw my player (different color)
+      // Draw my player 
       if (socketRef.current?.id && players[socketRef.current.id]) {
-        drawDog(ctx, myPlayer.current.x, myPlayer.current.y, myPlayer.current.rotation, '#e9c46a');
+        drawDog(ctx, myPlayer.current.x, myPlayer.current.y, myPlayer.current.rotation, myDogType.current);
       }
 
       animationId = requestAnimationFrame(gameLoop);
@@ -127,20 +158,15 @@ function Game() {
     };
   }, [players]);
 
-  const drawDog = (ctx, x, y, rotation, color) => {
+  const drawDog = (ctx, x, y, rotation, dogType = 'kenzo') => {
+    const img = dogImages.current[dogType];
+    if (!img || !img.complete) return;
+
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rotation);
-    
-    // Simple triangle for now (we'll make it cuter later)
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(15, 0);
-    ctx.lineTo(-10, -10);
-    ctx.lineTo(-10, 10);
-    ctx.closePath();
-    ctx.fill();
-    
+    const size = 40;
+    ctx.drawImage(img, -size/2, -size/2, size, size);
     ctx.restore();
   };
 
