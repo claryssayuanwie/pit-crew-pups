@@ -39,34 +39,38 @@ function Game() {
   const ROTATION_SPEED = 0.08;
   const TOTAL_LAPS = 3;
 
-  // Checkpoints for lap detection
   const getCheckpoints = () => {
     const centerX = CANVAS_WIDTH / 2;
     const centerY = CANVAS_HEIGHT / 2;
     const radiusX = CANVAS_WIDTH * 0.35;
-    const trackRadius = radiusX - 70; // Middle of track
+    const radiusY = CANVAS_HEIGHT * 0.35;
+    const trackOffset = 70; // Middle of track width
     
     return [
       { 
-        x: centerX + Math.cos(Math.PI/2) * trackRadius, 
-        y: centerY + Math.sin(Math.PI/2) * trackRadius, 
-        radius: 80 
-      }, // Top (90 degrees)
+        // Top checkpoint
+        x: centerX, 
+        y: centerY - radiusY * 0.9, 
+        radius: 60
+      },
       { 
-        x: centerX + Math.cos(0) * trackRadius, 
-        y: centerY + Math.sin(0) * trackRadius, 
-        radius: 80 
-      }, // Right (0 degrees)
+        // Right checkpoint
+        x: centerX + radiusX * 0.9, 
+        y: centerY, 
+        radius: 60
+      },
       { 
-        x: centerX + Math.cos(-Math.PI/2) * trackRadius, 
-        y: centerY + Math.sin(-Math.PI/2) * trackRadius, 
-        radius: 80 
-      }, // Bottom (270 degrees)
+        // Bottom checkpoint
+        x: centerX, 
+        y: centerY + radiusY * 0.9, 
+        radius: 60
+      },
       { 
-        x: centerX + Math.cos(Math.PI) * trackRadius, 
-        y: centerY + Math.sin(Math.PI) * trackRadius, 
-        radius: 80 
-      }, // Left - Finish line (180 degrees)
+        // Left checkpoint (finish line)
+        x: centerX - radiusX * 0.9, 
+        y: centerY, 
+        radius: 60
+      }
     ];
   };
 
@@ -154,6 +158,7 @@ function Game() {
     myPlayer.current.x = centerX + Math.cos(startAngle) * trackRadius;
     myPlayer.current.y = centerY + Math.sin(startAngle) * trackRadius;
     myPlayer.current.rotation = startAngle; // Face left to go around track
+    myPlayer.current.lastCheckpoint = 3;
   }, [CANVAS_WIDTH, CANVAS_HEIGHT]);
 
   // Race timer
@@ -193,10 +198,7 @@ function Game() {
         myPlayer.current.x += Math.cos(myPlayer.current.rotation) * myPlayer.current.speed;
         myPlayer.current.y += Math.sin(myPlayer.current.rotation) * myPlayer.current.speed;
 
-        // Keep player in bounds
-        myPlayer.current.x = Math.max(50, Math.min(CANVAS_WIDTH - 50, myPlayer.current.x));
-        myPlayer.current.y = Math.max(50, Math.min(CANVAS_HEIGHT - 50, myPlayer.current.y));
-
+        
         // Check checkpoints
         checkCheckpoints();
 
@@ -221,13 +223,20 @@ function Game() {
       // Draw track
       drawTrack(ctx);
 
-      // Draw checkpoints (for debugging - remove later)
-      // checkpoints.forEach((cp, i) => {
-      //   ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
-      //   ctx.beginPath();
-      //   ctx.arc(cp.x, cp.y, cp.radius, 0, Math.PI * 2);
-      //   ctx.fill();
-      // });
+      const checkpoints = getCheckpoints();
+      checkpoints.forEach((cp, i) => {
+        ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+        ctx.beginPath();
+        ctx.arc(cp.x, cp.y, cp.radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Label them
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`CP${i}`, cp.x, cp.y);
+      });
+
 
       // Draw all players
       Object.values(players).forEach((player) => {
@@ -260,11 +269,12 @@ function Game() {
       Math.pow(myPlayer.current.y - cp.y, 2)
     );
 
+    // Only register checkpoint if you hit THE NEXT ONE in sequence
     if (dist < cp.radius) {
       myPlayer.current.lastCheckpoint = nextCheckpoint;
       
-      // If we just crossed the finish line (checkpoint 3 -> 0)
-      if (nextCheckpoint === 0 && myPlayer.current.lastCheckpoint === 0) {
+      // Completed a lap when you hit checkpoint 3 (the finish line) after going through all others
+      if (nextCheckpoint === 3) {
         myPlayer.current.lap++;
         setMyLap(myPlayer.current.lap);
         
@@ -282,22 +292,27 @@ function Game() {
     const radiusX = CANVAS_WIDTH * 0.35;
     const radiusY = CANVAS_HEIGHT * 0.35;
     
-    // Calculate if player is on the track (inside outer ellipse, outside inner ellipse)
     const dx = (myPlayer.current.x - centerX) / radiusX;
     const dy = (myPlayer.current.y - centerY) / radiusY;
     const distFromCenter = Math.sqrt(dx * dx + dy * dy);
     
-    // Track is between 0.75 and 1.0 of the ellipse radius
-    const innerBound = 0.75;
-    const outerBound = 1.05;
+    // EXACT boundaries - crash only when hitting red
+    // Gray track outer edge (safe)
+    const grayOuterBound = 1.0 + (70 / radiusX);  // ≈ 1.20
+    // Gray track inner edge (safe)  
+    const grayInnerBound = 1.0 - (70 / radiusX);  // ≈ 0.80
     
-    if (distFromCenter < innerBound || distFromCenter > outerBound) {
-      // CRASH! Respawn at last checkpoint
+    // Crash if OUTSIDE gray track (hitting red borders)
+    if (distFromCenter < grayInnerBound || distFromCenter > grayOuterBound) {
       const cp = checkpoints[myPlayer.current.lastCheckpoint];
+      if (!cp) return;
+      
       myPlayer.current.x = cp.x;
       myPlayer.current.y = cp.y;
       myPlayer.current.speed = 0;
-      myPlayer.current.rotation = 0;
+      
+      const angleToCenter = Math.atan2(cp.y - centerY, cp.x - centerX);
+      myPlayer.current.rotation = angleToCenter + Math.PI / 2;
     }
   };
 
