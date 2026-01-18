@@ -205,14 +205,18 @@ function Game() {
         // Check off-track
         checkOffTrack();
 
-        // Send position to server
+        // Send position to server (limit to ~30 updates per second)
         if (socketRef.current) {
-          socketRef.current.emit('player-move', {
-            id: socketRef.current.id,
-            dogType: myDogType.current,
-            lap: myPlayer.current.lap,
-            ...myPlayer.current
-          });
+          const now = Date.now();
+          if (!myPlayer.current.lastUpdate || now - myPlayer.current.lastUpdate > 33) {
+            myPlayer.current.lastUpdate = now;
+            socketRef.current.emit('player-move', {
+              id: socketRef.current.id,
+              dogType: myDogType.current,
+              lap: myPlayer.current.lap,
+              ...myPlayer.current
+            });
+          }
         }
       }
 
