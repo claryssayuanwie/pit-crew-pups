@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import kenzo from './assets/kenzo.png';
 import jude from './assets/jude.png';
 import olive from './assets/olive.png';
+import flag from './assets/flag.png';
 
 
 function Game() {
@@ -134,8 +135,10 @@ function Game() {
     oliveImg.src = olive;
     const judeImg = new Image();
     judeImg.src = jude;
+    const flagImg = new Image();
+    flagImg.src = flag;
 
-    dogImages.current = { kenzo: kenzoImg, olive: oliveImg, jude: judeImg };
+    dogImages.current = { kenzo: kenzoImg, olive: oliveImg, jude: judeImg, flag: flagImg };
 
     // Pick random dog
     const dogTypes = ['kenzo', 'olive', 'jude'];
@@ -228,18 +231,13 @@ function Game() {
       drawTrack(ctx);
 
       const checkpoints = getCheckpoints();
-      checkpoints.forEach((cp, i) => {
-        ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
-        ctx.beginPath();
-        ctx.arc(cp.x, cp.y, cp.radius, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Label them
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 20px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`CP${i}`, cp.x, cp.y);
-      });
+      const flagImg = dogImages.current.flag;
+      if (flagImg && flagImg.complete) {
+        checkpoints.forEach((cp, i) => {
+          const flagSize = 40;
+          ctx.drawImage(flagImg, cp.x - flagSize/2, cp.y - flagSize/2, flagSize, flagSize);
+        });
+      }
 
 
       // Draw all players
