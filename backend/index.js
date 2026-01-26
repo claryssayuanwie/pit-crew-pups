@@ -21,29 +21,46 @@ let players = {};
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
   
-  // Add new player with random dog
-  const dogTypes = ['kenzo', 'olive', 'jude'];
-  const randomDog = dogTypes[Math.floor(Math.random() * dogTypes.length)];
-
-  players[socket.id] = {
-    id: socket.id,
-    x: 100,
-    y: 100,
-    rotation: 0,
-    dogType: randomDog
-  };
+  // Don't initialize player here - wait for first player-move
   
+  // Send existing players to new player
   socket.emit('current-players', players);
-  socket.broadcast.emit('player-joined', players[socket.id]);
   
   socket.on('player-move', (data) => {
-  if (players[socket.id]) {
-    players[socket.id].x = data.x;
-    players[socket.id].y = data.y;
-    players[socket.id].rotation = data.rotation;
-  }
-  socket.broadcast.emit('player-moved', players[socket.id]);
-});
+    // If player doesn't exist, create them
+    if (!players[socket.id]) {
+      players[socket.id] = {
+        id: socket.id,
+        x: data.x,
+        y: data.y,
+        rotation: data.rotation,
+        dogType: data.dogType,
+        name: data.name,
+        lap: data.lap || 0
+      };
+      
+      // Tell other players about the new player
+      socket.broadcast.emit('player-joined', players[socket.id]);
+    } else {
+      // Update existing player
+      players[socket.id].x = data.x;
+      players[socket.id].y = data.y;
+      players[socket.id].rotation = data.rotation;
+      
+      if (data.dogType) {
+        players[socket.id].dogType = data.dogType;
+      }
+      if (data.name) {
+        players[socket.id].name = data.name;
+      }
+      if (data.lap !== undefined) {
+        players[socket.id].lap = data.lap;
+      }
+      
+      // Broadcast update
+      socket.broadcast.emit('player-moved', players[socket.id]);
+    }
+  });
   
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);

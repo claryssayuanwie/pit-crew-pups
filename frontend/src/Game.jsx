@@ -12,7 +12,9 @@ function Game() {
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
   const [players, setPlayers] = useState({});
-  const [playerDogs, setPlayerDogs] = useState({});
+  
+  const [playerNames, setPlayerNames] = useState({});
+  const [imagesLoaded, setImagesLoaded] = useState(false);
   const keysPressed = useRef({});
   const myPlayer = useRef({ 
     x: 400, 
@@ -24,6 +26,7 @@ function Game() {
   });
   const dogImages = useRef({});
   const myDogType = useRef(null);
+  const myName = useRef('');
   const [canvasDimensions, setCanvasDimensions] = useState({
     width: window.innerWidth,
     height: window.innerHeight - 150
@@ -32,6 +35,11 @@ function Game() {
   const [myPosition, setMyPosition] = useState(1);
   const [raceTime, setRaceTime] = useState(0);
   const [raceFinished, setRaceFinished] = useState(false);
+  
+  // Landing page states
+  const [gameStarted, setGameStarted] = useState(false);
+  const [selectedDog, setSelectedDog] = useState(null);
+  const [playerName, setPlayerName] = useState('');
 
   const CANVAS_WIDTH = canvasDimensions.width;
   const CANVAS_HEIGHT = canvasDimensions.height;
@@ -48,32 +56,23 @@ function Game() {
     const radiusX = CANVAS_WIDTH * 0.35;
     const radiusY = CANVAS_HEIGHT * 0.35;
     
-    // Place checkpoints on the OUTER red border
-    // Red border outer edge is at radiusX + 80px
-    const checkpointRadiusX = radiusX + 80;
-    const checkpointRadiusY = radiusY + 80;
-    
     return [
       { 
-        // CP0 - Top (on outer red border)
         x: centerX, 
         y: centerY - radiusY, 
         radius: 80
       },
       { 
-        // CP1 - Right (on outer red border)
         x: centerX + radiusX, 
         y: centerY, 
         radius: 80
       },
       { 
-        // CP2 - Bottom (on outer red border)
         x: centerX, 
         y: centerY + radiusY, 
         radius: 80
       },
       { 
-        // CP3 - Left (finish line, on outer red border)
         x: centerX - radiusX, 
         y: centerY, 
         radius: 80
@@ -82,39 +81,45 @@ function Game() {
   };
 
   useEffect(() => {
+    if (!gameStarted) return;
+
     socketRef.current = io('http://localhost:3001');
 
     socketRef.current.on('current-players', (currentPlayers) => {
       setPlayers(currentPlayers);
-      const dogs = {};
+
+      const names = {};
       Object.keys(currentPlayers).forEach(id => {
-        dogs[id] = currentPlayers[id].dogType || 'kenzo';
+        names[id] = currentPlayers[id].name;
       });
-      setPlayerDogs(dogs);
+      setPlayerNames(names);
     });
+
 
     socketRef.current.on('player-joined', (player) => {
       setPlayers(prev => ({ ...prev, [player.id]: player }));
+      setPlayerNames(prev => ({ ...prev, [player.id]: player.name }));
     });
+
 
     socketRef.current.on('player-moved', (player) => {
       setPlayers(prev => ({ ...prev, [player.id]: player }));
+      if (player.name) {
+        setPlayerNames(prev => ({ ...prev, [player.id]: player.name }));
+      }
     });
 
-    socketRef.current.on('player-left', (playerId) => {
-      setPlayers(prev => {
-        const newPlayers = { ...prev };
-        delete newPlayers[playerId];
-        return newPlayers;
-      });
-    });
+
+    
 
     return () => {
       socketRef.current.disconnect();
     };
-  }, []);
+  }, [gameStarted]);
 
   useEffect(() => {
+    if (!gameStarted) return;
+
     const handleKeyDown = (e) => {
       keysPressed.current[e.key] = true;
     };
@@ -130,44 +135,55 @@ function Game() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [gameStarted]);
 
-  // Load dog images
+  // Load dog images immediately
   useEffect(() => {
+    let loadedCount = 0;
+    const totalImages = 4;
+
+    const checkAllLoaded = () => {
+      loadedCount++;
+      if (loadedCount === totalImages) {
+        setImagesLoaded(true);
+      }
+    };
+
     const kenzoImg = new Image();
+    kenzoImg.onload = checkAllLoaded;
     kenzoImg.src = kenzo;
+    
     const oliveImg = new Image();
+    oliveImg.onload = checkAllLoaded;
     oliveImg.src = olive;
+    
     const judeImg = new Image();
+    judeImg.onload = checkAllLoaded;
     judeImg.src = jude;
+    
     const flagImg = new Image();
+    flagImg.onload = checkAllLoaded;
     flagImg.src = flag;
 
     dogImages.current = { kenzo: kenzoImg, olive: oliveImg, jude: judeImg, flag: flagImg };
-
-    // Pick random dog
-    const dogTypes = ['kenzo', 'olive', 'jude'];
-    myDogType.current = dogTypes[Math.floor(Math.random() * dogTypes.length)];
   }, []);
 
   // Initial player position
   useEffect(() => {
-    // Place player on the track at the start/finish line position
+    if (!gameStarted) return;
+
     const centerX = CANVAS_WIDTH / 2;
     const centerY = CANVAS_HEIGHT / 2;
     const radiusX = CANVAS_WIDTH * 0.35;
     
-    // Start line is on the left side of the track (angle = Math.PI)
-    const startAngle = Math.PI; // Left side
-    
-    // Position on the track (middle of the track width)
-    const trackRadius = radiusX - 70; // 70px from outer edge (track width is 140px)
+    const startAngle = Math.PI;
+    const trackRadius = radiusX - 70;
     
     myPlayer.current.x = centerX + Math.cos(startAngle) * trackRadius;
     myPlayer.current.y = centerY + Math.sin(startAngle) * trackRadius;
-    myPlayer.current.rotation = startAngle; // Face left to go around track
+    myPlayer.current.rotation = startAngle;
     myPlayer.current.lastCheckpoint = 3;
-  }, [CANVAS_WIDTH, CANVAS_HEIGHT]);
+  }, [CANVAS_WIDTH, CANVAS_HEIGHT, gameStarted]);
 
   // Race timer
   useEffect(() => {
@@ -182,13 +198,14 @@ function Game() {
 
   // Game loop
   useEffect(() => {
+    if (!gameStarted) return;
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     let animationId;
 
     const gameLoop = () => {
       if (!raceFinished) {
-        // Movement with acceleration
         if (keysPressed.current['ArrowUp'] || keysPressed.current['w']) {
           myPlayer.current.speed = Math.min(myPlayer.current.speed + ACCELERATION, MAX_SPEED);
         } else {
@@ -202,18 +219,12 @@ function Game() {
           myPlayer.current.rotation += ROTATION_SPEED;
         }
 
-        // Update position based on speed and rotation
         myPlayer.current.x += Math.cos(myPlayer.current.rotation) * myPlayer.current.speed;
         myPlayer.current.y += Math.sin(myPlayer.current.rotation) * myPlayer.current.speed;
 
-        
-        // Check checkpoints
         checkCheckpoints();
-
-        // Check off-track
         checkOffTrack();
 
-        // Send position to server (limit to ~30 updates per second)
         if (socketRef.current) {
           const now = Date.now();
           if (!myPlayer.current.lastUpdate || now - myPlayer.current.lastUpdate > 33) {
@@ -221,6 +232,7 @@ function Game() {
             socketRef.current.emit('player-move', {
               id: socketRef.current.id,
               dogType: myDogType.current,
+              name: myName.current,
               lap: myPlayer.current.lap,
               ...myPlayer.current
             });
@@ -228,14 +240,11 @@ function Game() {
         }
       }
 
-      // Clear canvas
-      ctx.fillStyle = '#1a5f4a'; // Dark green grass
+      ctx.fillStyle = '#1a5f4a';
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-      // Draw track
       drawTrack(ctx);
 
-      // Draw checkpoints/flags BEFORE players
       const checkpoints = getCheckpoints();
       const flagImg = dogImages.current.flag;
       if (flagImg && flagImg.complete) {
@@ -245,15 +254,15 @@ function Game() {
         });
       }
 
-      // Draw all players
       Object.values(players).forEach((player) => {
-        const dogType = playerDogs[player.id] || 'olive';
-        drawDog(ctx, player.x, player.y, player.rotation, dogType, false);
+        if (player.id === socketRef.current?.id) return;
+        const dogType = player.dogType || 'olive';
+        const name = player.name || playerNames[player.id] || 'Player';
+        drawDog(ctx, player.x, player.y, player.rotation, dogType, name, false);
       });
 
-      // Draw my player
       if (socketRef.current?.id) {
-        drawDog(ctx, myPlayer.current.x, myPlayer.current.y, myPlayer.current.rotation, myDogType.current, true);
+        drawDog(ctx, myPlayer.current.x, myPlayer.current.y, myPlayer.current.rotation, myDogType.current, myName.current, true);
       }
 
       animationId = requestAnimationFrame(gameLoop);
@@ -264,7 +273,7 @@ function Game() {
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [players, playerDogs, CANVAS_WIDTH, CANVAS_HEIGHT, raceFinished]);
+  }, [players, playerNames, CANVAS_WIDTH, CANVAS_HEIGHT, raceFinished, gameStarted]);
 
   const checkCheckpoints = () => {
     const checkpoints = getCheckpoints();
@@ -276,11 +285,9 @@ function Game() {
       Math.pow(myPlayer.current.y - cp.y, 2)
     );
 
-    // Only register checkpoint if you hit THE NEXT ONE in sequence
     if (dist < cp.radius) {
       myPlayer.current.lastCheckpoint = nextCheckpoint;
       
-      // Completed a lap when you hit checkpoint 3 (the finish line) after going through all others
       if (nextCheckpoint === 3) {
         myPlayer.current.lap++;
         setMyLap(myPlayer.current.lap);
@@ -293,7 +300,6 @@ function Game() {
   };
 
   const checkOffTrack = () => {
-    const checkpoints = getCheckpoints();
     const centerX = CANVAS_WIDTH / 2;
     const centerY = CANVAS_HEIGHT / 2;
     const radiusX = CANVAS_WIDTH * 0.35;
@@ -303,14 +309,11 @@ function Game() {
     const dy = (myPlayer.current.y - centerY) / radiusY;
     const distFromCenter = Math.sqrt(dx * dx + dy * dy);
     
-    // EXACT boundaries - crash only when hitting red
-    // Gray track outer edge (safe)
-    const grayOuterBound = 1.0 + (70 / radiusX);  // ≈ 1.20
-    // Gray track inner edge (safe)  
-    const grayInnerBound = 1.0 - (70 / radiusX);  // ≈ 0.80
+    const grayOuterBound = 1.0 + (70 / radiusX);
+    const grayInnerBound = 1.0 - (70 / radiusX);
     
-    // Crash if OUTSIDE gray track (hitting red borders)
     if (distFromCenter < grayInnerBound || distFromCenter > grayOuterBound) {
+      const checkpoints = getCheckpoints();
       const cp = checkpoints[myPlayer.current.lastCheckpoint];
       if (!cp) return;
       
@@ -329,21 +332,18 @@ function Game() {
     const radiusX = CANVAS_WIDTH * 0.35;
     const radiusY = CANVAS_HEIGHT * 0.35;
 
-    // Outer track border (red/white curb)
     ctx.strokeStyle = '#d32f2f';
     ctx.lineWidth = 160;
     ctx.beginPath();
     ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Main track (gray asphalt)
     ctx.strokeStyle = '#424242';
     ctx.lineWidth = 140;
     ctx.beginPath();
     ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Center line dashes
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 3;
     ctx.setLineDash([20, 20]);
@@ -352,16 +352,14 @@ function Game() {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Start/Finish line (checkered pattern) - FIXED POSITION
-    const finishAngle = Math.PI; // Left side (180 degrees)
-    const finishRadius = radiusX; // Middle of the track
+    const finishAngle = Math.PI;
+    const finishRadius = radiusX;
     const finishX = centerX + Math.cos(finishAngle) * finishRadius;
     const finishY = centerY + Math.sin(finishAngle) * finishRadius;
     
-    // Rotate the finish line to be perpendicular to the track
     ctx.save();
     ctx.translate(finishX, finishY);
-    ctx.rotate(finishAngle - Math.PI/2); // Rotate to be perpendicular to track
+    ctx.rotate(finishAngle - Math.PI/2);
     
     const finishWidth = 30;
     const finishHeight = 140;
@@ -382,7 +380,7 @@ function Game() {
   };
 
   
-   const drawDog = (ctx, x, y, rotation, dogType, isMe) => {
+  const drawDog = (ctx, x, y, rotation, dogType, name, isMe) => {
     const img = dogImages.current[dogType];
     if (!img || !img.complete) return;
 
@@ -390,40 +388,44 @@ function Game() {
     ctx.translate(x, y);
     ctx.rotate(rotation + Math.PI / 2);
 
-
-    // Draw actual dog image
     const size = 50;
     ctx.drawImage(img, -size/2, -size/2, size, size);
 
-
     ctx.restore();
 
-      // Name tag above dog
-      if (isMe) {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('YOU', x, y - 35);
-      }
+    ctx.fillStyle = isMe ? '#FFD700' : '#ffffff';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(name || 'Player', x, y - 35);
+  };
+
+  const handleResize = () => {
+    setCanvasDimensions({
+      width: window.innerWidth,
+      height: window.innerHeight - 150
+    });
+  };
+
+  useEffect(() => {
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
     };
+  }, []);
 
-    const handleResize = () => {
-      setCanvasDimensions({
-        width: window.innerWidth,
-        height: window.innerHeight - 150
-      });
-    };
+  const handleStartGame = () => {
+    if (!selectedDog || !playerName.trim()) {
+      alert('Please enter your name and select a dog!');
+      return;
+    }
+    myDogType.current = selectedDog;
+    myName.current = playerName.trim();
+    setGameStarted(true);
+  };
 
-    useEffect(() => {
-      window.addEventListener('resize', handleResize);
-      return () => {
-        window.removeEventListener('resize', handleResize);
-      };
-    }, []);
-      
-
-
-  return (
+  // Landing Page
+  if (!gameStarted) {
+    return (
       <div style={{ 
         width: '100vw', 
         height: '100vh', 
@@ -433,134 +435,280 @@ function Game() {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        justifyContent: 'center',
         backgroundColor: '#1a5f4a',
         position: 'fixed',
         top: 0,
         left: 0,
         fontFamily: '"Space Mono", monospace'
       }}>
-        {/* Minimal Header */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'flex-start', 
-          alignItems: 'center',
-          width: '100%',
-          padding: '32px 60px',
-          marginLeft: '120px',
-          gap: '200px',
+        <h1 style={{ 
+          margin: '0 0 48px 0', 
+          fontSize: '50px',
+          fontWeight: '700',
+          letterSpacing: '4px',
           color: 'white'
         }}>
-          <h1 style={{ 
-            margin: 0, 
-            fontSize: '32px',
-            fontWeight: '700',
-            letterSpacing: '2px'
-          }}>
-            pit crew pups
-          </h1>
-          
-          <div style={{ 
-            display: 'flex', 
-            gap: '24px', 
+          pit crew pups
+        </h1>
+
+        {/* Name Input */}
+        <div style={{ marginBottom: '48px' }}>
+          <label style={{ 
+            display: 'block',
+            color: 'white',
             fontSize: '18px',
-            fontWeight: '400',
+            marginBottom: '12px',
             letterSpacing: '1px'
           }}>
-            <span>lap {myLap}/{TOTAL_LAPS}</span>
-            <span></span>
-            <span>time {raceTime.toFixed(1)}s</span>
-            <span></span>
-            <span>speed {Math.floor(myPlayer.current.speed * 10)}</span>
-          </div>
+            ENTER YOUR NAME
+          </label>
+          <input
+            type="text"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+            maxLength={15}
+            placeholder="username"
+            style={{
+              padding: '16px 24px',
+              fontSize: '18px',
+              backgroundColor: 'white',
+              color: '#1a5f4a',
+              border: '2px solid white',
+              fontFamily: '"Space Mono", monospace',
+              fontWeight: '700',
+              letterSpacing: '2px',
+              textAlign: 'center',
+              width: '300px'
+            }}
+          />
         </div>
 
-        <canvas 
-          ref={canvasRef} 
-          width={CANVAS_WIDTH} 
-          height={CANVAS_HEIGHT}
-          style={{ display: 'block' }}
-        />
-
-        {/* Minimal Winner Modal */}
-        {raceFinished && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            fontFamily: '"Space Mono", monospace'
+        {/* Dog Selection */}
+        <div style={{ marginBottom: '48px' }}>
+          <label style={{ 
+            display: 'block',
+            color: 'white',
+            fontSize: '18px',
+            marginBottom: '24px',
+            letterSpacing: '1px',
+            textAlign: 'center'
           }}>
-            <div style={{
-              textAlign: 'center',
-              color: 'white'
-            }}>
-              <h2 style={{ 
-                fontSize: '64px', 
-                margin: '0 0 24px 0',
-                fontWeight: '700',
-                letterSpacing: '4px',
-                textTransform: 'uppercase'
-              }}>
-                RACE COMPLETE
-              </h2>
-              <p style={{ 
-                fontSize: '32px',
-                margin: '0 0 48px 0',
-                letterSpacing: '2px'
-              }}>
-                {raceTime.toFixed(2)}S
-              </p>
-              <button 
-                onClick={() => window.location.reload()}
+            CHOOSE YOUR PUP
+          </label>
+          <div style={{ 
+            display: 'flex', 
+            gap: '32px',
+            justifyContent: 'center'
+          }}>
+            {['kenzo', 'jude', 'olive'].map(dog => (
+              <div
+                key={dog}
+                onClick={() => setSelectedDog(dog)}
                 style={{
-                  padding: '16px 40px',
-                  fontSize: '18px',
-                  backgroundColor: 'white',
-                  color: '#1a5f4a',
-                  border: '2px solid white',
                   cursor: 'pointer',
-                  fontWeight: '700',
-                  letterSpacing: '2px',
-                  textTransform: 'uppercase',
-                  fontFamily: '"Space Mono", monospace',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.backgroundColor = 'transparent';
-                  e.target.style.color = 'white';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.backgroundColor = 'white';
-                  e.target.style.color = '#1a5f4a';
+                  padding: '16px',
+                  border: selectedDog === dog ? '4px solid #FFD700' : '4px solid transparent',
+                  backgroundColor: selectedDog === dog ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px'
                 }}
               >
-                RACE AGAIN
-              </button>
-            </div>
+                {imagesLoaded && (
+                  <img 
+                    src={dogImages.current[dog]?.src || ''} 
+                    style={{ 
+                      width: '100px', 
+                      height: '100px',
+                      objectFit: 'contain'
+                    }}
+                  />
+                )}
+                <span style={{  
+                  color: 'white',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase'
+                }}>
+                  {dog}
+                </span>
+              </div>
+            ))}
           </div>
-        )}
-
-        {/* Controls hint */}
-        <div style={{
-          position: 'fixed',
-          bottom: '32px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          color: 'rgba(255, 255, 255, 0.6)',
-          fontSize: '14px',
-          letterSpacing: '1px',
-          textTransform: 'uppercase'
-        }}>
-          use arrow keys or WASD buttons to move 
         </div>
+
+        {/* Start Button */}
+        <button 
+          onClick={handleStartGame}
+          style={{
+            padding: '20px 60px',
+            fontSize: '24px',
+            backgroundColor: 'white',
+            color: '#1a5f4a',
+            border: '2px solid white',
+            cursor: 'pointer',
+            fontWeight: '700',
+            letterSpacing: '3px',
+            textTransform: 'uppercase',
+            fontFamily: '"Space Mono", monospace',
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => {
+            e.target.style.backgroundColor = 'transparent';
+            e.target.style.color = 'white';
+          }}
+          onMouseOut={(e) => {
+            e.target.style.backgroundColor = 'white';
+            e.target.style.color = '#1a5f4a';
+          }}
+        >
+          START RACE
+        </button>
       </div>
     );
+  }
+
+  // Game Screen
+  return (
+    <div style={{ 
+      width: '100vw', 
+      height: '100vh', 
+      margin: 0, 
+      padding: 0,  
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      backgroundColor: '#1a5f4a',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      fontFamily: '"Space Mono", monospace'
+    }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'flex-start', 
+        alignItems: 'center',
+        width: '100%',
+        padding: '32px 60px',
+        marginLeft: '120px',
+        gap: '200px',
+        color: 'white'
+      }}>
+        <h1 style={{ 
+          margin: 0, 
+          fontSize: '32px',
+          fontWeight: '700',
+          letterSpacing: '2px'
+        }}>
+          pit crew pups
+        </h1>
+        
+        <div style={{ 
+          display: 'flex', 
+          gap: '24px', 
+          fontSize: '18px',
+          fontWeight: '400',
+          letterSpacing: '1px'
+        }}>
+          <span>lap {myLap}/{TOTAL_LAPS}</span>
+          <span></span>
+          <span>time {raceTime.toFixed(1)}s</span>
+          <span></span>
+          <span>speed {Math.floor(myPlayer.current.speed * 10)}</span>
+        </div>
+      </div>
+
+      <canvas 
+        ref={canvasRef} 
+        width={CANVAS_WIDTH} 
+        height={CANVAS_HEIGHT}
+        style={{ display: 'block' }}
+      />
+
+      {raceFinished && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          fontFamily: '"Space Mono", monospace'
+        }}>
+          <div style={{
+            textAlign: 'center',
+            color: 'white'
+          }}>
+            <h2 style={{ 
+              fontSize: '64px', 
+              margin: '0 0 24px 0',
+              fontWeight: '700',
+              letterSpacing: '4px',
+              textTransform: 'uppercase'
+            }}>
+              RACE COMPLETE
+            </h2>
+            <p style={{ 
+              fontSize: '32px',
+              margin: '0 0 48px 0',
+              letterSpacing: '2px'
+            }}>
+              {raceTime.toFixed(2)}S
+            </p>
+            <button 
+              onClick={() => window.location.reload()}
+              style={{
+                padding: '16px 40px',
+                fontSize: '18px',
+                backgroundColor: 'white',
+                color: '#1a5f4a',
+                border: '2px solid white',
+                cursor: 'pointer',
+                fontWeight: '700',
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
+                fontFamily: '"Space Mono", monospace',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.backgroundColor = 'transparent';
+                e.target.style.color = 'white';
+              }}
+              onMouseOut={(e) => {
+                e.target.style.backgroundColor = 'white';
+                e.target.style.color = '#1a5f4a';
+              }}
+            >
+              RACE AGAIN
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{
+        position: 'fixed',
+        bottom: '32px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        color: 'rgba(255, 255, 255, 0.6)',
+        fontSize: '14px',
+        letterSpacing: '1px',
+        textTransform: 'uppercase'
+      }}>
+        use arrow keys or WASD to move 
+      </div>
+    </div>
+  );
 }
 
 export default Game;
