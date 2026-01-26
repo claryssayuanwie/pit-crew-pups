@@ -36,7 +36,7 @@ function Game() {
   const CANVAS_WIDTH = canvasDimensions.width;
   const CANVAS_HEIGHT = canvasDimensions.height;
   const SPEED = 5;
-  const MAX_SPEED = 8;
+  const MAX_SPEED = 30;
   const ACCELERATION = 0.5;
   const FRICTION = 0.95;
   const ROTATION_SPEED = 0.08;
@@ -57,24 +57,24 @@ function Game() {
       { 
         // CP0 - Top (on outer red border)
         x: centerX, 
-        y: centerY - checkpointRadiusY, 
+        y: centerY - radiusY, 
         radius: 80
       },
       { 
         // CP1 - Right (on outer red border)
-        x: centerX + checkpointRadiusX, 
+        x: centerX + radiusX, 
         y: centerY, 
         radius: 80
       },
       { 
         // CP2 - Bottom (on outer red border)
         x: centerX, 
-        y: centerY + checkpointRadiusY, 
+        y: centerY + radiusY, 
         radius: 80
       },
       { 
         // CP3 - Left (finish line, on outer red border)
-        x: centerX - checkpointRadiusX, 
+        x: centerX - radiusX, 
         y: centerY, 
         radius: 80
       }
