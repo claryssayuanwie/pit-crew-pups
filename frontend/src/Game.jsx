@@ -83,7 +83,7 @@ function Game() {
   useEffect(() => {
     if (!gameStarted) return;
 
-    socketRef.current = io('http://localhost:3001');
+    socketRef.current = io('https://pit-crew-pups.onrender.com');
 
     socketRef.current.on('current-players', (currentPlayers) => {
       setPlayers(currentPlayers);
