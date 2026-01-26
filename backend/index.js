@@ -10,7 +10,7 @@ app.use(cors());
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*",
+    origin: "pit-crew-pups-5si7z8jja-claryssayuanwies-projects.vercel.app",
     methods: ["GET", "POST"]
   }
 });
