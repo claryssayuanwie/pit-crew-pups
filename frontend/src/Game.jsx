@@ -6,6 +6,8 @@ import olive from './assets/olive.png';
 import flag from './assets/flag.png';
 
 
+
+
 function Game() {
   const canvasRef = useRef(null);
   const socketRef = useRef(null);
@@ -45,36 +47,39 @@ function Game() {
     const centerY = CANVAS_HEIGHT / 2;
     const radiusX = CANVAS_WIDTH * 0.35;
     const radiusY = CANVAS_HEIGHT * 0.35;
-    const trackOffset = 70; // Middle of track width
+    
+    // Place checkpoints on the OUTER red border
+    // Red border outer edge is at radiusX + 80px
+    const checkpointRadiusX = radiusX + 80;
+    const checkpointRadiusY = radiusY + 80;
     
     return [
       { 
-        // Top checkpoint
+        // CP0 - Top (on outer red border)
         x: centerX, 
-        y: centerY - radiusY * 0.9, 
-        radius: 60
+        y: centerY - checkpointRadiusY, 
+        radius: 80
       },
       { 
-        // Right checkpoint
-        x: centerX + radiusX * 0.9, 
+        // CP1 - Right (on outer red border)
+        x: centerX + checkpointRadiusX, 
         y: centerY, 
-        radius: 60
+        radius: 80
       },
       { 
-        // Bottom checkpoint
+        // CP2 - Bottom (on outer red border)
         x: centerX, 
-        y: centerY + radiusY * 0.9, 
-        radius: 60
+        y: centerY + checkpointRadiusY, 
+        radius: 80
       },
       { 
-        // Left checkpoint (finish line)
-        x: centerX - radiusX * 0.9, 
+        // CP3 - Left (finish line, on outer red border)
+        x: centerX - checkpointRadiusX, 
         y: centerY, 
-        radius: 60
+        radius: 80
       }
     ];
   };
-
 
   useEffect(() => {
     socketRef.current = io('http://localhost:3001');
@@ -230,6 +235,7 @@ function Game() {
       // Draw track
       drawTrack(ctx);
 
+      // Draw checkpoints/flags BEFORE players
       const checkpoints = getCheckpoints();
       const flagImg = dogImages.current.flag;
       if (flagImg && flagImg.complete) {
@@ -238,7 +244,6 @@ function Game() {
           ctx.drawImage(flagImg, cp.x - flagSize/2, cp.y - flagSize/2, flagSize, flagSize);
         });
       }
-
 
       // Draw all players
       Object.values(players).forEach((player) => {
@@ -349,7 +354,7 @@ function Game() {
 
     // Start/Finish line (checkered pattern) - FIXED POSITION
     const finishAngle = Math.PI; // Left side (180 degrees)
-    const finishRadius = radiusX - 70; // Middle of the track
+    const finishRadius = radiusX; // Middle of the track
     const finishX = centerX + Math.cos(finishAngle) * finishRadius;
     const finishY = centerY + Math.sin(finishAngle) * finishRadius;
     
@@ -374,12 +379,6 @@ function Game() {
     }
   
     ctx.restore();
-    
-    // "START" text
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 20px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('START', finishX, finishY - finishHeight/2 - 10);
   };
 
   
@@ -425,128 +424,143 @@ function Game() {
 
 
   return (
-    <div style={{ 
-      width: '100vw', 
-      height: '100vh', 
-      margin: 0, 
-      padding: 0, 
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      backgroundColor: '#1a5f4a',
-      position: 'fixed',
-      top: 0,
-      left: 0
-    }}>
-      {/* Header */}
       <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
+        width: '100vw', 
+        height: '100vh', 
+        margin: 0, 
+        padding: 0,  
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        width: '100%',
-        padding: '15px 30px',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        color: 'white'
+        backgroundColor: '#1a5f4a',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        fontFamily: '"Space Mono", monospace'
       }}>
-        <h1 style={{ margin: 0, fontSize: '32px' }}>🐕 Pit Crew Pups 🏎️</h1>
-        
-        <div style={{ display: 'flex', gap: '30px', fontSize: '20px', fontWeight: 'bold' }}>
-          <div style={{ 
-            backgroundColor: 'rgba(255, 255, 255, 0.2)', 
-            padding: '10px 20px', 
-            borderRadius: '10px' 
+        {/* Minimal Header */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'flex-start', 
+          alignItems: 'center',
+          width: '100%',
+          padding: '32px 60px',
+          marginLeft: '120px',
+          gap: '200px',
+          color: 'white'
+        }}>
+          <h1 style={{ 
+            margin: 0, 
+            fontSize: '32px',
+            fontWeight: '700',
+            letterSpacing: '2px'
           }}>
-            Lap: {myLap}/{TOTAL_LAPS}
-          </div>
+            pit crew pups
+          </h1>
+          
           <div style={{ 
-            backgroundColor: 'rgba(255, 255, 255, 0.2)', 
-            padding: '10px 20px', 
-            borderRadius: '10px' 
+            display: 'flex', 
+            gap: '24px', 
+            fontSize: '18px',
+            fontWeight: '400',
+            letterSpacing: '1px'
           }}>
-            Position: {myPosition}/{Object.keys(players).length || 1}
-          </div>
-          <div style={{ 
-            backgroundColor: 'rgba(255, 255, 255, 0.2)', 
-            padding: '10px 20px', 
-            borderRadius: '10px' 
-          }}>
-            Time: {raceTime.toFixed(1)}s
-          </div>
-          <div style={{ 
-            backgroundColor: 'rgba(255, 255, 255, 0.2)', 
-            padding: '10px 20px', 
-            borderRadius: '10px' 
-          }}>
-            Speed: {Math.floor(myPlayer.current.speed * 10)}
+            <span>lap {myLap}/{TOTAL_LAPS}</span>
+            <span></span>
+            <span>time {raceTime.toFixed(1)}s</span>
+            <span></span>
+            <span>speed {Math.floor(myPlayer.current.speed * 10)}</span>
           </div>
         </div>
-      </div>
 
-      <canvas 
-        ref={canvasRef} 
-        width={CANVAS_WIDTH} 
-        height={CANVAS_HEIGHT}
-        style={{ display: 'block' }}
-      />
+        <canvas 
+          ref={canvasRef} 
+          width={CANVAS_WIDTH} 
+          height={CANVAS_HEIGHT}
+          style={{ display: 'block' }}
+        />
 
-      {/* Winner modal */}
-      {raceFinished && (
+        {/* Minimal Winner Modal */}
+        {raceFinished && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            fontFamily: '"Space Mono", monospace'
+          }}>
+            <div style={{
+              textAlign: 'center',
+              color: 'white'
+            }}>
+              <h2 style={{ 
+                fontSize: '64px', 
+                margin: '0 0 24px 0',
+                fontWeight: '700',
+                letterSpacing: '4px',
+                textTransform: 'uppercase'
+              }}>
+                RACE COMPLETE
+              </h2>
+              <p style={{ 
+                fontSize: '32px',
+                margin: '0 0 48px 0',
+                letterSpacing: '2px'
+              }}>
+                {raceTime.toFixed(2)}S
+              </p>
+              <button 
+                onClick={() => window.location.reload()}
+                style={{
+                  padding: '16px 40px',
+                  fontSize: '18px',
+                  backgroundColor: 'white',
+                  color: '#1a5f4a',
+                  border: '2px solid white',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  letterSpacing: '2px',
+                  textTransform: 'uppercase',
+                  fontFamily: '"Space Mono", monospace',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.backgroundColor = 'transparent';
+                  e.target.style.color = 'white';
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.backgroundColor = 'white';
+                  e.target.style.color = '#1a5f4a';
+                }}
+              >
+                RACE AGAIN
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Controls hint */}
         <div style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
+          bottom: '32px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          color: 'rgba(255, 255, 255, 0.6)',
+          fontSize: '14px',
+          letterSpacing: '1px',
+          textTransform: 'uppercase'
         }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '50px',
-            borderRadius: '20px',
-            textAlign: 'center'
-          }}>
-            <h2 style={{ fontSize: '48px', margin: '0 0 20px 0' }}>🏆 Race Complete! 🏆</h2>
-            <p style={{ fontSize: '32px' }}>Time: {raceTime.toFixed(2)}s</p>
-            <button 
-              onClick={() => window.location.reload()}
-              style={{
-                padding: '15px 40px',
-                fontSize: '24px',
-                backgroundColor: '#4CAF50',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                marginTop: '20px'
-              }}
-            >
-              Race Again! 🏁
-            </button>
-          </div>
+          use arrow keys or WASD buttons to move 
         </div>
-      )}
-
-      {/* Controls hint */}
-      <div style={{
-        position: 'fixed',
-        bottom: '20px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        color: 'white',
-        padding: '10px 20px',
-        borderRadius: '10px',
-        fontSize: '16px'
-      }}>
-        🎮 Arrow Keys or WASD to move
       </div>
-    </div>
-  );
+    );
 }
 
 export default Game;
